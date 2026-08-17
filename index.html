@@ -1156,9 +1156,10 @@
                         当前身份：<span class="who" id="resultWho">未填写</span> ｜ 各层掌握度：<span class="who" id="resultSummary">—</span>
                     </p>
                     <p style="color:var(--color-ink-muted);margin-top:var(--sp-2);font-size:var(--fs-sm);">
-                        点击下方按钮可下载或复制结果，方便自己留存或发给老师。
+                        点击下方按钮可下载、复制，或直接「提交作业给老师」用于汇总分析。
                     </p>
                     <div class="result-actions">
+                        <button class="btn btn-success" type="button" onclick="submitToWeb3Forms()">📤 提交作业给老师</button>
                         <button class="btn btn-primary" type="button" onclick="exportMyResult()">⬇️ 下载结果文件（.json）</button>
                         <button class="btn btn-secondary" type="button" onclick="copyMyResult()">📋 复制结果文本</button>
                     </div>
@@ -1941,6 +1942,59 @@
                 );
             } else {
                 toast(fallbackCopy(text) ? '结果文本已复制 ✅' : '复制失败，请改用下载');
+            }
+        }
+
+        const WEB3FORMS_KEY = ''; // 填入 Web3Forms Access Key（https://web3forms.com）
+
+        async function submitToWeb3Forms() {
+            if (window._submitting) return;
+            if (!WEB3FORMS_KEY) {
+                toast('提交通道尚未配置，请联系老师');
+                return;
+            }
+            const identity = currentIdentity();
+            if (!identity) {
+                toast('请先填写姓名和学号');
+                return;
+            }
+            const scores = getLevelScores();
+            const hasData = Object.values(scores).some(v => v > 0);
+            if (!hasData) {
+                toast('请先完成题目再提交');
+                return;
+            }
+
+            window._submitting = true;
+            const payload = {
+                access_key: WEB3FORMS_KEY,
+                subject: 'OBE学习结果：' + identity.name + '（' + identity.studentId + '）',
+                name: identity.name,
+                student_id: identity.studentId,
+                score_l5: scores[5] + '%',
+                score_l4: scores[4] + '%',
+                score_l3: scores[3] + '%',
+                score_l2: scores[2] + '%',
+                score_l1: scores[1] + '%',
+                detail_json: JSON.stringify(buildResultPayload())
+            };
+
+            try {
+                const response = await fetch('https://api.web3forms.com/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    toast('✅ 提交成功！');
+                } else {
+                    toast('❌ 提交失败：' + (result.message || '请稍后重试'));
+                }
+            } catch (error) {
+                toast('❌ 网络错误，请重试');
+            } finally {
+                window._submitting = false;
             }
         }
 
